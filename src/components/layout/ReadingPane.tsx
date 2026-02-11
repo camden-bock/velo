@@ -10,7 +10,7 @@ export function ReadingPane() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary/50 text-text-tertiary glass-panel">
         <div className="text-center">
-          <MailOpen size={40} className="mb-4 text-text-tertiary" />
+          <MailOpen size={40} className="mx-auto mb-4 text-text-tertiary" />
           <h2 className="text-lg font-medium text-text-secondary">
             Velo
           </h2>
