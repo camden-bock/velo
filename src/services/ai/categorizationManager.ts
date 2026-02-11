@@ -2,7 +2,7 @@ import { isAiAvailable } from "./providerManager";
 import { categorizeThreads } from "./aiService";
 import { getSetting } from "@/services/db/settings";
 import {
-  getUncategorizedInboxThreadIds,
+  getRecentRuleCategorizedThreadIds,
   setThreadCategoriesBatch,
 } from "@/services/db/threadCategories";
 
@@ -15,11 +15,11 @@ export async function categorizeNewThreads(accountId: string): Promise<void> {
     const autoCat = await getSetting("ai_auto_categorize");
     if (autoCat === "false") return;
 
-    // Get uncategorized inbox threads
-    const threads = await getUncategorizedInboxThreadIds(accountId, 20);
+    // Get recently rule-categorized inbox threads (AI refines, not replaces)
+    const threads = await getRecentRuleCategorizedThreadIds(accountId, 20);
     if (threads.length === 0) return;
 
-    // Categorize via AI
+    // Categorize via AI (refines rule-based results)
     const categories = await categorizeThreads(
       threads.map((t) => ({
         id: t.id,
@@ -31,7 +31,7 @@ export async function categorizeNewThreads(accountId: string): Promise<void> {
 
     if (categories.size === 0) return;
 
-    // Store results
+    // Store results (setThreadCategoriesBatch respects manual overrides)
     await setThreadCategoriesBatch(accountId, categories);
   } catch (err) {
     // Non-blocking — log and continue

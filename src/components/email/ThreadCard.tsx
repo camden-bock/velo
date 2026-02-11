@@ -6,14 +6,23 @@ import { formatRelativeDate } from "@/utils/date";
 import { Paperclip, Star, Check, Pin } from "lucide-react";
 import type { DragData } from "@/components/dnd/DndProvider";
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Updates: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
+  Promotions: "bg-green-500/15 text-green-600 dark:text-green-400",
+  Social: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  Newsletters: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+};
+
 interface ThreadCardProps {
   thread: Thread;
   isSelected: boolean;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  category?: string;
+  showCategoryBadge?: boolean;
 }
 
-export function ThreadCard({ thread, isSelected, onClick, onContextMenu }: ThreadCardProps) {
+export function ThreadCard({ thread, isSelected, onClick, onContextMenu, category, showCategoryBadge }: ThreadCardProps) {
   const isMultiSelected = useThreadStore((s) => s.selectedThreadIds.has(thread.id));
   const hasMultiSelect = useThreadStore((s) => s.selectedThreadIds.size > 0);
   const selectedThreadIds = useThreadStore((s) => s.selectedThreadIds);
@@ -116,6 +125,11 @@ export function ThreadCard({ thread, isSelected, onClick, onContextMenu }: Threa
             <span className="text-xs text-text-tertiary truncate flex-1">
               {thread.snippet}
             </span>
+            {showCategoryBadge && category && category !== "Primary" && CATEGORY_COLORS[category] && (
+              <span className={`shrink-0 text-[10px] px-1.5 rounded-full leading-normal ${CATEGORY_COLORS[category]}`}>
+                {category}
+              </span>
+            )}
             {thread.isPinned && (
               <span className="shrink-0 text-accent" title="Pinned">
                 <Pin size={12} className="fill-current" />

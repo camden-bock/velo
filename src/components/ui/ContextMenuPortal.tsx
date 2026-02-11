@@ -27,7 +27,9 @@ import {
   ExternalLink,
   Pencil,
   Copy,
+  Layers,
 } from "lucide-react";
+import { setThreadCategory, ALL_CATEGORIES } from "@/services/db/threadCategories";
 
 function buildQuote(msg: { from_name: string | null; from_address: string | null; date: string | number; body_html: string | null; body_text: string | null }): string {
   const date = new Date(msg.date).toLocaleString();
@@ -449,6 +451,21 @@ function ThreadMenu({
           children: labelItems,
         }]
       : []),
+    {
+      id: "move-to-category",
+      label: "Move to Category",
+      icon: Layers,
+      children: ALL_CATEGORIES.map((cat) => ({
+        id: `cat-${cat}`,
+        label: cat,
+        action: async () => {
+          for (const id of targetIds) {
+            await setThreadCategory(activeAccountId, id, cat, true);
+          }
+          window.dispatchEvent(new Event("velo-sync-done"));
+        },
+      })),
+    },
     {
       id: "pop-out",
       label: "Open in New Window",

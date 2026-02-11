@@ -7,6 +7,13 @@ import { upsertAttachment } from "../db/attachments";
 import { updateAccountSyncState } from "../db/accounts";
 import { queueNewEmailNotification } from "../notifications/notificationManager";
 import { applyFiltersToMessages } from "../filters/filterEngine";
+import { getSetting } from "../db/settings";
+
+async function loadAutoArchiveCategories(): Promise<Set<string>> {
+  const raw = await getSetting("auto_archive_categories");
+  if (!raw) return new Set();
+  return new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+}
 
 export interface SyncProgress {
   phase: "labels" | "threads" | "messages" | "done";
@@ -18,11 +25,14 @@ export type SyncProgressCallback = (progress: SyncProgress) => void;
 
 /**
  * Store a fetched thread's data (messages, labels, attachments) into the local DB.
+ * Optionally pass autoArchiveCategories and client to enable auto-archiving.
  */
 async function processAndStoreThread(
   thread: { id: string },
   accountId: string,
   parsedMessages: ParsedMessage[],
+  client?: GmailClient,
+  autoArchiveCategories?: Set<string>,
 ): Promise<void> {
   const lastMessage = parsedMessages[parsedMessages.length - 1]!;
   const firstMessage = parsedMessages[0]!;
@@ -53,6 +63,33 @@ async function processAndStoreThread(
   });
 
   await setThreadLabels(accountId, thread.id, [...allLabelIds]);
+
+  // Rule-based categorization for inbox threads
+  if (allLabelIds.has("INBOX")) {
+    const { getThreadCategoryWithManual, setThreadCategory } = await import("@/services/db/threadCategories");
+    const existing = await getThreadCategoryWithManual(accountId, thread.id);
+    // Skip if manually categorized
+    if (!existing || !existing.isManual) {
+      const { categorizeByRules } = await import("@/services/categorization/ruleEngine");
+      const category = categorizeByRules({
+        labelIds: [...allLabelIds],
+        fromAddress: lastMessage.fromAddress,
+        listUnsubscribe: lastMessage.listUnsubscribe,
+      });
+      await setThreadCategory(accountId, thread.id, category, false);
+
+      // Auto-archive if category matches
+      if (client && autoArchiveCategories && autoArchiveCategories.has(category) && category !== "Primary") {
+        try {
+          await client.modifyThread(thread.id, undefined, ["INBOX"]);
+          allLabelIds.delete("INBOX");
+          await setThreadLabels(accountId, thread.id, [...allLabelIds]);
+        } catch (err) {
+          console.error(`Failed to auto-archive thread ${thread.id}:`, err);
+        }
+      }
+    }
+  }
 
   for (const parsed of parsedMessages) {
     await upsertMessage({
@@ -159,6 +196,9 @@ export async function initialSync(
   // Phase 3: Fetch and store each thread's details
   let historyId = "0";
 
+  // Load auto-archive categories once for the whole sync
+  const autoArchiveCategories = await loadAutoArchiveCategories();
+
   for (let i = 0; i < threadStubs.length; i++) {
     const stub = threadStubs[i]!;
     onProgress?.({
@@ -179,7 +219,7 @@ export async function initialSync(
       if (!thread.messages || thread.messages.length === 0) continue;
 
       const parsedMessages = thread.messages.map(parseGmailMessage);
-      await processAndStoreThread(thread, accountId, parsedMessages);
+      await processAndStoreThread(thread, accountId, parsedMessages, client, autoArchiveCategories);
     } catch (err) {
       console.error(`Failed to sync thread ${stub.id}:`, err);
       // Continue with next thread
@@ -278,6 +318,9 @@ export async function deltaSync(
       return;
     }
 
+    // Load auto-archive categories once for the whole sync
+    const autoArchiveCategories = await loadAutoArchiveCategories();
+
     // Re-fetch affected threads in parallel (max 5 concurrent)
     const threadIds = [...affectedThreadIds];
     await parallelLimit(
@@ -288,7 +331,7 @@ export async function deltaSync(
           if (!thread.messages || thread.messages.length === 0) return;
 
           const parsedMessages = thread.messages.map(parseGmailMessage);
-          await processAndStoreThread(thread, accountId, parsedMessages);
+          await processAndStoreThread(thread, accountId, parsedMessages, client, autoArchiveCategories);
 
           // Send desktop notifications for new unread inbox messages
           for (const parsed of parsedMessages) {

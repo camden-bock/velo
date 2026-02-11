@@ -16,6 +16,16 @@ vi.mock("../db/attachments", () => ({
 vi.mock("../db/accounts", () => ({
   updateAccountSyncState: vi.fn(),
 }));
+vi.mock("../db/settings", () => ({
+  getSetting: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("../db/threadCategories", () => ({
+  getThreadCategoryWithManual: vi.fn().mockResolvedValue(null),
+  setThreadCategory: vi.fn(),
+}));
+vi.mock("@/services/categorization/ruleEngine", () => ({
+  categorizeByRules: vi.fn().mockReturnValue("Primary"),
+}));
 
 const mockNotify = vi.fn();
 vi.mock("../notifications/notificationManager", () => ({

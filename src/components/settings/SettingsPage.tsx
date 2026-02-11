@@ -76,6 +76,7 @@ export function SettingsPage() {
   const [cacheSizeMb, setCacheSizeMb] = useState<number | null>(null);
   const [clearingCache, setClearingCache] = useState(false);
   const [reauthStatus, setReauthStatus] = useState<Record<string, "idle" | "authorizing" | "done" | "error">>({});
+  const [autoArchiveCategories, setAutoArchiveCategories] = useState<Set<string>>(new Set());
 
   // Load settings from DB
   useEffect(() => {
@@ -120,6 +121,12 @@ export function SettingsPage() {
       setAiAutoCategorize(aiCat !== "false");
       const aiSum = await getSetting("ai_auto_summarize");
       setAiAutoSummarize(aiSum !== "false");
+
+      // Load auto-archive categories
+      const autoArchive = await getSetting("auto_archive_categories");
+      if (autoArchive) {
+        setAutoArchiveCategories(new Set(autoArchive.split(",").map((s) => s.trim()).filter(Boolean)));
+      }
 
       // Load cache settings
       const cacheMax = await getSetting("attachment_cache_max_mb");
@@ -778,7 +785,7 @@ export function SettingsPage() {
                     />
                     <ToggleRow
                       label="Auto-categorize inbox"
-                      description="Automatically sort new emails into categories"
+                      description="Use AI to refine rule-based categorization"
                       checked={aiAutoCategorize}
                       onToggle={async () => {
                         const newVal = !aiAutoCategorize;
@@ -796,6 +803,30 @@ export function SettingsPage() {
                         await setSetting("ai_auto_summarize", newVal ? "true" : "false");
                       }}
                     />
+                  </Section>
+
+                  <Section title="Categories">
+                    <p className="text-xs text-text-tertiary mb-1">
+                      Incoming emails are automatically sorted using rule-based heuristics (Gmail labels, sender domain, headers). When AI is enabled, it refines results for better accuracy.
+                    </p>
+                    <p className="text-xs text-text-tertiary mb-3">
+                      Enable auto-archive to skip the inbox for specific categories.
+                    </p>
+                    {(["Updates", "Promotions", "Social", "Newsletters"] as const).map((cat) => (
+                      <ToggleRow
+                        key={cat}
+                        label={`Auto-archive ${cat}`}
+                        description={`Skip inbox for ${cat.toLowerCase()} emails`}
+                        checked={autoArchiveCategories.has(cat)}
+                        onToggle={async () => {
+                          const next = new Set(autoArchiveCategories);
+                          if (next.has(cat)) next.delete(cat);
+                          else next.add(cat);
+                          setAutoArchiveCategories(next);
+                          await setSetting("auto_archive_categories", [...next].join(","));
+                        }}
+                      />
+                    ))}
                   </Section>
                 </>
               )}

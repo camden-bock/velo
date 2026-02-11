@@ -6,8 +6,8 @@ import { EmailListSkeleton } from "../ui/Skeleton";
 import { useThreadStore, type Thread } from "@/stores/threadStore";
 import { useAccountStore } from "@/stores/accountStore";
 import { useUIStore } from "@/stores/uiStore";
-import { getThreadsForAccount, getThreadLabelIds, deleteThread as deleteThreadFromDb } from "@/services/db/threads";
-import { getCategoriesForThreads, ALL_CATEGORIES } from "@/services/db/threadCategories";
+import { getThreadsForAccount, getThreadsForCategory, getThreadLabelIds, deleteThread as deleteThreadFromDb } from "@/services/db/threads";
+import { getCategoriesForThreads, getCategoryUnreadCounts, ALL_CATEGORIES } from "@/services/db/threadCategories";
 import { getGmailClient } from "@/services/gmail/tokenManager";
 import { useLabelStore } from "@/stores/labelStore";
 import { useContextMenuStore } from "@/stores/contextMenuStore";
@@ -15,6 +15,7 @@ import { useComposerStore } from "@/stores/composerStore";
 import { getMessagesForThread } from "@/services/db/messages";
 import { Archive, Trash2, X, Ban, Search, UserPlus, CheckCircle2, Star, Clock, Send, FileEdit, ShieldCheck, Mail, Tag, Filter } from "lucide-react";
 import { EmptyState } from "../ui/EmptyState";
+import { DEMO_MODE, DEMO_THREADS } from "@/demoData";
 
 const PAGE_SIZE = 50;
 
@@ -45,6 +46,7 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+  const [categoryUnreadCounts, setCategoryUnreadCounts] = useState<Map<string, number>>(new Map());
 
   const openMenu = useContextMenuStore((s) => s.openMenu);
   const multiSelectCount = selectedThreadIds.size;
@@ -168,17 +170,9 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
     // Apply read filter
     if (readFilter === "unread") filtered = filtered.filter((t) => !t.isRead);
     else if (readFilter === "read") filtered = filtered.filter((t) => t.isRead);
-    // Apply category filter (inbox only)
-    if (activeLabel === "inbox" && activeCategory !== "All") {
-      filtered = filtered.filter((t) => {
-        const cat = categoryMap.get(t.id);
-        // Uncategorized threads show in Primary
-        if (activeCategory === "Primary") return !cat || cat === "Primary";
-        return cat === activeCategory;
-      });
-    }
+    // Category filtering is now server-side (Phase 4) — no client-side filter needed
     return filtered;
-  }, [threads, readFilter, searchThreadIds, activeLabel, activeCategory, categoryMap]);
+  }, [threads, readFilter, searchThreadIds]);
 
   const mapDbThreads = useCallback(async (dbThreads: Awaited<ReturnType<typeof getThreadsForAccount>>): Promise<Thread[]> => {
     return Promise.all(
@@ -211,17 +205,36 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
       return;
     }
 
+    // Demo mode: use fake threads
+    if (DEMO_MODE) {
+      clearSearch();
+      const gmailLabelId = LABEL_MAP[activeLabel] ?? activeLabel;
+      const filtered = gmailLabelId
+        ? DEMO_THREADS.filter((t) => t.labelIds.includes(gmailLabelId))
+        : DEMO_THREADS;
+      setThreads(filtered);
+      setLoading(false);
+      setHasMore(false);
+      return;
+    }
+
     clearSearch();
     setLoading(true);
     setHasMore(true);
     try {
-      const gmailLabelId = LABEL_MAP[activeLabel] ?? activeLabel;
-      const dbThreads = await getThreadsForAccount(
-        activeAccountId,
-        gmailLabelId || undefined,
-        PAGE_SIZE,
-        0,
-      );
+      let dbThreads;
+      // Server-side category filtering for inbox
+      if (activeLabel === "inbox" && activeCategory !== "All") {
+        dbThreads = await getThreadsForCategory(activeAccountId, activeCategory, PAGE_SIZE, 0);
+      } else {
+        const gmailLabelId = LABEL_MAP[activeLabel] ?? activeLabel;
+        dbThreads = await getThreadsForAccount(
+          activeAccountId,
+          gmailLabelId || undefined,
+          PAGE_SIZE,
+          0,
+        );
+      }
 
       const mapped = await mapDbThreads(dbThreads);
       setThreads(mapped);
@@ -231,21 +244,26 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
     } finally {
       setLoading(false);
     }
-  }, [activeAccountId, activeLabel, setThreads, setLoading, mapDbThreads, clearSearch]);
+  }, [activeAccountId, activeLabel, activeCategory, setThreads, setLoading, mapDbThreads, clearSearch]);
 
   const loadMore = useCallback(async () => {
     if (!activeAccountId || loadingMore || !hasMore) return;
 
     setLoadingMore(true);
     try {
-      const gmailLabelId = LABEL_MAP[activeLabel] ?? activeLabel;
       const offset = threads.length;
-      const dbThreads = await getThreadsForAccount(
-        activeAccountId,
-        gmailLabelId || undefined,
-        PAGE_SIZE,
-        offset,
-      );
+      let dbThreads;
+      if (activeLabel === "inbox" && activeCategory !== "All") {
+        dbThreads = await getThreadsForCategory(activeAccountId, activeCategory, PAGE_SIZE, offset);
+      } else {
+        const gmailLabelId = LABEL_MAP[activeLabel] ?? activeLabel;
+        dbThreads = await getThreadsForAccount(
+          activeAccountId,
+          gmailLabelId || undefined,
+          PAGE_SIZE,
+          offset,
+        );
+      }
 
       const mapped = await mapDbThreads(dbThreads);
       if (mapped.length > 0) {
@@ -257,20 +275,31 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
     } finally {
       setLoadingMore(false);
     }
-  }, [activeAccountId, activeLabel, threads, loadingMore, hasMore, setThreads, mapDbThreads]);
+  }, [activeAccountId, activeLabel, activeCategory, threads, loadingMore, hasMore, setThreads, mapDbThreads]);
 
   useEffect(() => {
     loadThreads();
   }, [loadThreads]);
 
-  // Load categories when threads change (inbox only)
+  // Load categories for "All" tab (needed for category badges)
   useEffect(() => {
-    if (activeLabel !== "inbox" || threads.length === 0 || !activeAccountId) {
+    if (activeLabel !== "inbox" || activeCategory !== "All" || threads.length === 0 || !activeAccountId) {
       setCategoryMap(new Map());
       return;
     }
     getCategoriesForThreads(activeAccountId, threads.map((t) => t.id))
       .then(setCategoryMap)
+      .catch(console.error);
+  }, [threads, activeLabel, activeCategory, activeAccountId]);
+
+  // Load unread counts for category tabs
+  useEffect(() => {
+    if (activeLabel !== "inbox" || !activeAccountId) {
+      setCategoryUnreadCounts(new Map());
+      return;
+    }
+    getCategoryUnreadCounts(activeAccountId)
+      .then(setCategoryUnreadCounts)
       .catch(console.error);
   }, [threads, activeLabel, activeAccountId]);
 
@@ -344,7 +373,7 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
 
       {/* Category tabs (inbox only) */}
       {activeLabel === "inbox" && (
-        <CategoryTabs activeCategory={activeCategory} onSelect={setActiveCategory} />
+        <CategoryTabs activeCategory={activeCategory} onSelect={setActiveCategory} unreadCounts={categoryUnreadCounts} />
       )}
 
       {/* Multi-select action bar */}
@@ -406,6 +435,7 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
             activeAccountId={activeAccountId}
             activeLabel={activeLabel}
             readFilter={readFilter}
+            activeCategory={activeCategory}
           />
         ) : (
           <>
@@ -434,6 +464,8 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
                       }
                     }}
                     onContextMenu={(e) => handleThreadContextMenu(e, thread.id)}
+                    category={categoryMap.get(thread.id)}
+                    showCategoryBadge={activeLabel === "inbox" && activeCategory === "All"}
                   />
                 </div>
               );
@@ -455,7 +487,7 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
   );
 }
 
-function CategoryTabs({ activeCategory, onSelect }: { activeCategory: string; onSelect: (cat: string) => void }) {
+function CategoryTabs({ activeCategory, onSelect, unreadCounts }: { activeCategory: string; onSelect: (cat: string) => void; unreadCounts: Map<string, number> }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number } | null>(null);
@@ -512,13 +544,18 @@ function CategoryTabs({ activeCategory, onSelect }: { activeCategory: string; on
               onSelect(cat);
               e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
             }}
-            className={`px-2.5 py-1.5 text-xs font-medium transition-colors relative whitespace-nowrap ${
+            className={`px-2.5 py-1.5 text-xs font-medium transition-colors relative whitespace-nowrap flex items-center gap-1 ${
               activeCategory === cat
                 ? "text-accent"
                 : "text-text-tertiary hover:text-text-primary"
             }`}
           >
             {cat}
+            {cat !== "All" && (unreadCounts.get(cat) ?? 0) > 0 && (
+              <span className="text-[10px] bg-accent/15 text-accent px-1.5 rounded-full leading-normal">
+                {unreadCounts.get(cat)}
+              </span>
+            )}
           </button>
         ))}
         {/* Sliding indicator */}
@@ -538,11 +575,13 @@ function EmptyStateForContext({
   activeAccountId,
   activeLabel,
   readFilter,
+  activeCategory,
 }: {
   searchQuery: string | null;
   activeAccountId: string | null;
   activeLabel: string;
   readFilter: string;
+  activeCategory: string;
 }) {
   if (searchQuery) {
     return <EmptyState icon={Search} title="No results found" subtitle="Try a different search term" />;
@@ -556,6 +595,17 @@ function EmptyStateForContext({
 
   switch (activeLabel) {
     case "inbox":
+      if (activeCategory !== "All") {
+        const categoryMessages: Record<string, { title: string; subtitle: string }> = {
+          Primary: { title: "Primary is clear", subtitle: "No important conversations" },
+          Updates: { title: "No updates", subtitle: "Notifications and transactional emails appear here" },
+          Promotions: { title: "No promotions", subtitle: "Marketing and promotional emails appear here" },
+          Social: { title: "No social emails", subtitle: "Social network notifications appear here" },
+          Newsletters: { title: "No newsletters", subtitle: "Newsletters and subscriptions appear here" },
+        };
+        const msg = categoryMessages[activeCategory];
+        if (msg) return <EmptyState icon={CheckCircle2} title={msg.title} subtitle={msg.subtitle} />;
+      }
       return <EmptyState icon={CheckCircle2} title="You're all caught up" subtitle="No new conversations" />;
     case "starred":
       return <EmptyState icon={Star} title="No starred conversations" subtitle="Star emails to find them here" />;

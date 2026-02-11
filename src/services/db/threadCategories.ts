@@ -29,6 +29,38 @@ export async function getThreadCategory(
   return rows[0]?.category ?? null;
 }
 
+export async function getThreadCategoryWithManual(
+  accountId: string,
+  threadId: string,
+): Promise<{ category: string; isManual: boolean } | null> {
+  const db = await getDb();
+  const rows = await db.select<DbThreadCategory[]>(
+    "SELECT category, is_manual FROM thread_categories WHERE account_id = $1 AND thread_id = $2",
+    [accountId, threadId],
+  );
+  if (!rows[0]) return null;
+  return { category: rows[0].category, isManual: rows[0].is_manual === 1 };
+}
+
+export async function getRecentRuleCategorizedThreadIds(
+  accountId: string,
+  limit = 20,
+): Promise<{ id: string; subject: string; snippet: string; fromAddress: string }[]> {
+  const db = await getDb();
+  return db.select(
+    `SELECT t.id, t.subject, t.snippet, m.from_address as fromAddress
+     FROM threads t
+     INNER JOIN thread_labels tl ON tl.account_id = t.account_id AND tl.thread_id = t.id
+     INNER JOIN thread_categories tc ON tc.account_id = t.account_id AND tc.thread_id = t.id
+     LEFT JOIN messages m ON m.account_id = t.account_id AND m.thread_id = t.id
+       AND m.date = (SELECT MAX(m2.date) FROM messages m2 WHERE m2.account_id = t.account_id AND m2.thread_id = t.id)
+     WHERE t.account_id = $1 AND tl.label_id = 'INBOX' AND tc.is_manual = 0
+     ORDER BY t.last_message_at DESC
+     LIMIT $2`,
+    [accountId, limit],
+  );
+}
+
 export async function getCategoriesForThreads(
   accountId: string,
   threadIds: string[],
@@ -84,6 +116,27 @@ export async function setThreadCategoriesBatch(
       [accountId, threadId, category],
     );
   }
+}
+
+export async function getCategoryUnreadCounts(
+  accountId: string,
+): Promise<Map<string, number>> {
+  const db = await getDb();
+  const rows = await db.select<{ category: string | null; count: number }[]>(
+    `SELECT tc.category, COUNT(*) as count
+     FROM threads t
+     INNER JOIN thread_labels tl ON tl.account_id = t.account_id AND tl.thread_id = t.id
+     LEFT JOIN thread_categories tc ON tc.account_id = t.account_id AND tc.thread_id = t.id
+     WHERE t.account_id = $1 AND tl.label_id = 'INBOX' AND t.is_read = 0
+     GROUP BY tc.category`,
+    [accountId],
+  );
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const cat = row.category ?? "Primary";
+    map.set(cat, (map.get(cat) ?? 0) + row.count);
+  }
+  return map;
 }
 
 export async function getUncategorizedInboxThreadIds(
