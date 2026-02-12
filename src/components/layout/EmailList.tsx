@@ -9,12 +9,13 @@ import { useUIStore } from "@/stores/uiStore";
 import { getThreadsForAccount, getThreadsForCategory, getThreadLabelIds, deleteThread as deleteThreadFromDb } from "@/services/db/threads";
 import { getCategoriesForThreads, getCategoryUnreadCounts, ALL_CATEGORIES } from "@/services/db/threadCategories";
 import { getActiveFollowUpThreadIds } from "@/services/db/followUpReminders";
+import { getBundleRules, getHeldThreadIds, getBundleSummary, type DbBundleRule } from "@/services/db/bundleRules";
 import { getGmailClient } from "@/services/gmail/tokenManager";
 import { useLabelStore } from "@/stores/labelStore";
 import { useContextMenuStore } from "@/stores/contextMenuStore";
 import { useComposerStore } from "@/stores/composerStore";
 import { getMessagesForThread } from "@/services/db/messages";
-import { Archive, Trash2, X, Ban, Filter } from "lucide-react";
+import { Archive, Trash2, X, Ban, Filter, ChevronRight, Package } from "lucide-react";
 import { EmptyState } from "../ui/EmptyState";
 import {
   InboxClearIllustration,
@@ -54,6 +55,10 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
   const [categoryUnreadCounts, setCategoryUnreadCounts] = useState<Map<string, number>>(new Map());
   const [followUpThreadIds, setFollowUpThreadIds] = useState<Set<string>>(new Set());
+  const [bundleRules, setBundleRules] = useState<DbBundleRule[]>([]);
+  const [heldThreadIds, setHeldThreadIds] = useState<Set<string>>(new Set());
+  const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
+  const [bundleSummaries, setBundleSummaries] = useState<Map<string, { count: number; latestSubject: string | null; latestSender: string | null }>>(new Map());
 
   const openMenu = useContextMenuStore((s) => s.openMenu);
   const multiSelectCount = selectedThreadIds.size;
@@ -308,6 +313,34 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
       .catch(() => setFollowUpThreadIds(new Set()));
   }, [threads, activeAccountId]);
 
+  // Load bundle rules and held threads for inbox "All" view
+  useEffect(() => {
+    if (activeLabel !== "inbox" || !activeAccountId) {
+      setBundleRules([]);
+      setHeldThreadIds(new Set());
+      setBundleSummaries(new Map());
+      return;
+    }
+    getBundleRules(activeAccountId)
+      .then((rules) => {
+        setBundleRules(rules.filter((r) => r.is_bundled));
+        // Load summaries for bundled categories
+        const summaryPromises = rules
+          .filter((r) => r.is_bundled)
+          .map(async (r) => {
+            const summary = await getBundleSummary(activeAccountId, r.category);
+            return [r.category, summary] as const;
+          });
+        Promise.all(summaryPromises).then((entries) => {
+          setBundleSummaries(new Map(entries));
+        });
+      })
+      .catch(() => setBundleRules([]));
+    getHeldThreadIds(activeAccountId)
+      .then(setHeldThreadIds)
+      .catch(() => setHeldThreadIds(new Set()));
+  }, [threads, activeLabel, activeAccountId]);
+
   // Reset category tab when leaving inbox
   useEffect(() => {
     if (activeLabel !== "inbox") setActiveCategory("All");
@@ -434,7 +467,7 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {isLoading && threads.length === 0 ? (
           <EmailListSkeleton />
-        ) : filteredThreads.length === 0 ? (
+        ) : filteredThreads.length === 0 && bundleRules.length === 0 ? (
           <EmptyStateForContext
             searchQuery={searchQuery}
             activeAccountId={activeAccountId}
@@ -444,7 +477,76 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
           />
         ) : (
           <>
-            {filteredThreads.map((thread, idx) => {
+            {/* Bundle rows for "All" inbox view */}
+            {activeLabel === "inbox" && activeCategory === "All" && bundleRules.map((rule) => {
+              const summary = bundleSummaries.get(rule.category);
+              if (!summary || summary.count === 0) return null;
+              const isExpanded = expandedBundles.has(rule.category);
+              const bundledThreads = isExpanded
+                ? filteredThreads.filter((t) => categoryMap.get(t.id) === rule.category)
+                : [];
+              return (
+                <div key={`bundle-${rule.category}`}>
+                  <button
+                    onClick={() => {
+                      setExpandedBundles((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(rule.category)) next.delete(rule.category);
+                        else next.add(rule.category);
+                        return next;
+                      });
+                    }}
+                    className="w-full text-left px-4 py-3 border-b border-border-secondary hover:bg-bg-hover transition-colors flex items-center gap-3"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                      <Package size={16} className="text-accent" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-text-primary">
+                          {rule.category}
+                        </span>
+                        <span className="text-xs bg-accent/15 text-accent px-1.5 rounded-full">
+                          {summary.count}
+                        </span>
+                      </div>
+                      <span className="text-xs text-text-tertiary truncate block mt-0.5">
+                        {summary.latestSender && `${summary.latestSender}: `}{summary.latestSubject ?? ""}
+                      </span>
+                    </div>
+                    <ChevronRight
+                      size={14}
+                      className={`text-text-tertiary transition-transform shrink-0 ${isExpanded ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                  {isExpanded && bundledThreads.map((thread) => (
+                    <div key={thread.id} className="pl-4">
+                      <ThreadCard
+                        thread={thread}
+                        isSelected={thread.id === selectedThreadId}
+                        onClick={() => selectThread(thread.id)}
+                        onContextMenu={(e) => handleThreadContextMenu(e, thread.id)}
+                        category={rule.category}
+                        hasFollowUp={followUpThreadIds.has(thread.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            {filteredThreads
+              .filter((t) => {
+                // In "All" view, hide threads that belong to a bundled (collapsed) category
+                if (activeLabel === "inbox" && activeCategory === "All") {
+                  const cat = categoryMap.get(t.id);
+                  const isBundled = cat && bundleRules.some((r) => r.category === cat);
+                  if (isBundled) return false;
+                  // Also hide held threads
+                  if (heldThreadIds.has(t.id)) return false;
+                }
+                return true;
+              })
+              .map((thread, idx) => {
               const prevThread = idx > 0 ? filteredThreads[idx - 1] : undefined;
               const showDivider = prevThread?.isPinned && !thread.isPinned;
               return (

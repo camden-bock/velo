@@ -34,6 +34,10 @@ import {
   startFollowUpChecker,
   stopFollowUpChecker,
 } from "./services/followup/followupManager";
+import {
+  startBundleChecker,
+  stopBundleChecker,
+} from "./services/bundles/bundleManager";
 import { initNotifications } from "./services/notifications/notificationManager";
 import {
   initGlobalShortcut,
@@ -214,10 +218,11 @@ export default function App() {
           startBackgroundSync(activeIds);
         }
 
-        // Start snooze, scheduled send, and follow-up checkers
+        // Start snooze, scheduled send, follow-up, and bundle checkers
         startSnoozeChecker();
         startScheduledSendChecker();
         startFollowUpChecker();
+        startBundleChecker();
 
         // Initialize notifications
         await initNotifications();
@@ -245,6 +250,7 @@ export default function App() {
       stopSnoozeChecker();
       stopScheduledSendChecker();
       stopFollowUpChecker();
+      stopBundleChecker();
       unregisterComposeShortcut();
       deepLinkCleanupRef?.();
     };
