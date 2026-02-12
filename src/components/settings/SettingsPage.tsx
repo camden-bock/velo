@@ -21,6 +21,7 @@ import {
   UserCircle,
   Keyboard,
   Sparkles,
+  MailMinus,
   type LucideIcon,
 } from "lucide-react";
 import { SignatureEditor } from "./SignatureEditor";
@@ -28,10 +29,11 @@ import { TemplateEditor } from "./TemplateEditor";
 import { FilterEditor } from "./FilterEditor";
 import { LabelEditor } from "./LabelEditor";
 import { ContactEditor } from "./ContactEditor";
+import { SubscriptionManager } from "./SubscriptionManager";
 import { SHORTCUTS, getDefaultKeyMap } from "@/constants/shortcuts";
 import { useShortcutStore } from "@/stores/shortcutStore";
 
-type SettingsTab = "general" | "composing" | "labels" | "filters" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai";
+type SettingsTab = "general" | "composing" | "labels" | "filters" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai" | "subscriptions";
 
 const tabs: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: "General", icon: Settings },
@@ -39,6 +41,7 @@ const tabs: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "labels", label: "Labels", icon: Tag },
   { id: "filters", label: "Filters", icon: Filter },
   { id: "contacts", label: "Contacts", icon: Users },
+  { id: "subscriptions", label: "Subscriptions", icon: MailMinus },
   { id: "accounts", label: "Accounts", icon: UserCircle },
   { id: "sync", label: "Sync", icon: RefreshCw },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
@@ -949,6 +952,15 @@ export function SettingsPage() {
                     ))}
                   </Section>
                 </>
+              )}
+
+              {activeTab === "subscriptions" && (
+                <Section title="Manage Subscriptions">
+                  <p className="text-xs text-text-tertiary mb-3">
+                    View all detected newsletter and promotional senders. Unsubscribe using RFC 8058 one-click POST, mailto, or browser fallback.
+                  </p>
+                  <SubscriptionManager />
+                </Section>
               )}
             </div>
           </div>

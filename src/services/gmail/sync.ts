@@ -114,6 +114,7 @@ async function processAndStoreThread(
       rawSize: parsed.rawSize,
       internalDate: parsed.internalDate,
       listUnsubscribe: parsed.listUnsubscribe,
+      listUnsubscribePost: parsed.listUnsubscribePost,
     });
 
     for (const att of parsed.attachments) {

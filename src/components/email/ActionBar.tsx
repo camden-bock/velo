@@ -6,11 +6,9 @@ import { useUIStore } from "@/stores/uiStore";
 import { getGmailClient } from "@/services/gmail/tokenManager";
 import { deleteThread as deleteThreadFromDb, pinThread as pinThreadDb, unpinThread as unpinThreadDb } from "@/services/db/threads";
 import { snoozeThread } from "@/services/snooze/snoozeManager";
-import { parseUnsubscribeUrl } from "./MessageItem";
 import { SnoozeDialog } from "./SnoozeDialog";
 import { FollowUpDialog } from "./FollowUpDialog";
 import { Archive, Trash2, MailOpen, Mail, Star, Clock, Ban, Pin, MailMinus, BellRing } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DbMessage } from "@/services/db/messages";
 import { insertFollowUpReminder, getFollowUpForThread, cancelFollowUpForThread } from "@/services/db/followUpReminders";
 
@@ -131,22 +129,34 @@ export function ActionBar({ thread, messages }: ActionBarProps) {
 
   // Find the first message with an unsubscribe header
   const unsubscribeMessage = messages?.find((m) => m.list_unsubscribe);
-  const unsubscribeUrl = unsubscribeMessage
-    ? parseUnsubscribeUrl(unsubscribeMessage.list_unsubscribe!)
-    : null;
+  const hasUnsubscribe = !!unsubscribeMessage?.list_unsubscribe;
+  const [unsubscribeStatus, setUnsubscribeStatus] = useState<"idle" | "loading" | "done">("idle");
 
   const handleUnsubscribe = async () => {
-    if (!unsubscribeUrl) return;
+    if (!unsubscribeMessage?.list_unsubscribe || !activeAccountId) return;
+    setUnsubscribeStatus("loading");
     try {
-      await openUrl(unsubscribeUrl);
-      // Optionally archive after unsubscribing
-      if (activeAccountId) {
+      const { executeUnsubscribe } = await import("@/services/unsubscribe/unsubscribeManager");
+      const result = await executeUnsubscribe(
+        activeAccountId,
+        thread.id,
+        unsubscribeMessage.from_address ?? "unknown",
+        unsubscribeMessage.from_name,
+        unsubscribeMessage.list_unsubscribe,
+        unsubscribeMessage.list_unsubscribe_post,
+      );
+      if (result.success) {
+        setUnsubscribeStatus("done");
+        // Auto-archive after successful unsubscribe
         removeThread(thread.id);
         const client = await getGmailClient(activeAccountId);
         await client.modifyThread(thread.id, undefined, ["INBOX"]);
+      } else {
+        setUnsubscribeStatus("idle");
       }
     } catch (err) {
       console.error("Failed to unsubscribe:", err);
+      setUnsubscribeStatus("idle");
     }
   };
 
@@ -251,12 +261,13 @@ export function ActionBar({ thread, messages }: ActionBarProps) {
             label="Follow up"
           />
         )}
-        {unsubscribeUrl && (
+        {hasUnsubscribe && (
           <ActionButton
             onClick={handleUnsubscribe}
             title="Unsubscribe (u)"
             icon={<MailMinus size={14} />}
-            label="Unsubscribe"
+            label={unsubscribeStatus === "loading" ? "Unsubscribing..." : unsubscribeStatus === "done" ? "Unsubscribed" : "Unsubscribe"}
+            className={unsubscribeStatus === "done" ? "text-success" : ""}
           />
         )}
       </div>

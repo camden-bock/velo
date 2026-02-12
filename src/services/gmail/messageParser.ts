@@ -31,6 +31,7 @@ export interface ParsedMessage {
   hasAttachments: boolean;
   attachments: ParsedAttachment[];
   listUnsubscribe: string | null;
+  listUnsubscribePost: string | null;
 }
 
 export function parseGmailMessage(msg: GmailMessage): ParsedMessage {
@@ -64,6 +65,7 @@ export function parseGmailMessage(msg: GmailMessage): ParsedMessage {
     hasAttachments: attachments.length > 0,
     attachments,
     listUnsubscribe: getHeader(headers, "List-Unsubscribe"),
+    listUnsubscribePost: getHeader(headers, "List-Unsubscribe-Post"),
   };
 }
 

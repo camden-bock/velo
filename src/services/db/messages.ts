@@ -21,6 +21,7 @@ export interface DbMessage {
   raw_size: number | null;
   internal_date: number | null;
   list_unsubscribe: string | null;
+  list_unsubscribe_post: string | null;
 }
 
 export async function getMessagesForThread(
@@ -54,18 +55,19 @@ export async function upsertMessage(msg: {
   rawSize: number | null;
   internalDate: number | null;
   listUnsubscribe?: string | null;
+  listUnsubscribePost?: string | null;
 }): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO messages (id, account_id, thread_id, from_address, from_name, to_addresses, cc_addresses, bcc_addresses, reply_to, subject, snippet, date, is_read, is_starred, body_html, body_text, body_cached, raw_size, internal_date, list_unsubscribe)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+    `INSERT INTO messages (id, account_id, thread_id, from_address, from_name, to_addresses, cc_addresses, bcc_addresses, reply_to, subject, snippet, date, is_read, is_starred, body_html, body_text, body_cached, raw_size, internal_date, list_unsubscribe, list_unsubscribe_post)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
      ON CONFLICT(account_id, id) DO UPDATE SET
        from_address = $4, from_name = $5, to_addresses = $6, cc_addresses = $7,
        bcc_addresses = $8, reply_to = $9, subject = $10, snippet = $11,
        date = $12, is_read = $13, is_starred = $14,
        body_html = COALESCE($15, body_html), body_text = COALESCE($16, body_text),
        body_cached = CASE WHEN $15 IS NOT NULL THEN 1 ELSE body_cached END,
-       raw_size = $18, internal_date = $19, list_unsubscribe = $20`,
+       raw_size = $18, internal_date = $19, list_unsubscribe = $20, list_unsubscribe_post = $21`,
     [
       msg.id,
       msg.accountId,
@@ -87,6 +89,7 @@ export async function upsertMessage(msg: {
       msg.rawSize,
       msg.internalDate,
       msg.listUnsubscribe ?? null,
+      msg.listUnsubscribePost ?? null,
     ],
   );
 }

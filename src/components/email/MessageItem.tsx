@@ -6,17 +6,18 @@ import { AttachmentList, getAttachmentsForMessage } from "./AttachmentList";
 import type { DbMessage } from "@/services/db/messages";
 import type { DbAttachment } from "@/services/db/attachments";
 import { MailMinus } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface MessageItemProps {
   message: DbMessage;
   isLast: boolean;
   blockImages?: boolean | null;
   senderAllowlisted?: boolean;
+  accountId?: string;
+  threadId?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-export function MessageItem({ message, isLast, blockImages, senderAllowlisted, onContextMenu }: MessageItemProps) {
+export function MessageItem({ message, isLast, blockImages, senderAllowlisted, accountId, threadId, onContextMenu }: MessageItemProps) {
   const [expanded, setExpanded] = useState(isLast);
   const [attachments, setAttachments] = useState<DbAttachment[]>([]);
   const [, setPreviewAttachment] = useState<DbAttachment | null>(null);
@@ -90,7 +91,14 @@ export function MessageItem({ message, isLast, blockImages, senderAllowlisted, o
       {expanded && (
         <div className="px-4 pb-4">
           {message.list_unsubscribe && (
-            <UnsubscribeLink header={message.list_unsubscribe} />
+            <UnsubscribeLink
+              header={message.list_unsubscribe}
+              postHeader={message.list_unsubscribe_post}
+              accountId={accountId ?? message.account_id}
+              threadId={threadId ?? message.thread_id}
+              fromAddress={message.from_address}
+              fromName={message.from_name}
+            />
           )}
 
           {blockImages != null ? (
@@ -133,26 +141,62 @@ export function parseUnsubscribeUrl(header: string): string | null {
   return null;
 }
 
-function UnsubscribeLink({ header }: { header: string }) {
+function UnsubscribeLink({
+  header,
+  postHeader,
+  accountId,
+  threadId,
+  fromAddress,
+  fromName,
+}: {
+  header: string;
+  postHeader?: string | null;
+  accountId: string;
+  threadId: string;
+  fromAddress: string | null;
+  fromName: string | null;
+}) {
   const url = parseUnsubscribeUrl(header);
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "failed">("idle");
   if (!url) return null;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setStatus("loading");
     try {
-      await openUrl(url);
+      const { executeUnsubscribe } = await import("@/services/unsubscribe/unsubscribeManager");
+      const result = await executeUnsubscribe(
+        accountId,
+        threadId,
+        fromAddress ?? "unknown",
+        fromName,
+        header,
+        postHeader ?? null,
+      );
+      setStatus(result.success ? "done" : "failed");
     } catch (err) {
-      console.error("Failed to open unsubscribe link:", err);
+      console.error("Failed to unsubscribe:", err);
+      setStatus("failed");
     }
   };
 
   return (
     <button
       onClick={handleClick}
-      className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary mb-2 transition-colors"
+      disabled={status === "loading" || status === "done"}
+      className={`flex items-center gap-1 text-xs mb-2 transition-colors ${
+        status === "done"
+          ? "text-success"
+          : status === "failed"
+            ? "text-danger"
+            : "text-text-tertiary hover:text-text-secondary"
+      }`}
     >
       <MailMinus size={12} />
-      Unsubscribe
+      {status === "loading" && "Unsubscribing..."}
+      {status === "done" && "Unsubscribed"}
+      {status === "failed" && "Unsubscribe failed — click to retry"}
+      {status === "idle" && "Unsubscribe"}
     </button>
   );
 }
