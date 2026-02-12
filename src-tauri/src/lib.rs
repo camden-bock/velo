@@ -123,6 +123,16 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // On Windows/Linux, remove decorations for custom titlebar.
+            // macOS uses titleBarStyle: "overlay" from config instead, which
+            // preserves native event routing in WKWebView.
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(false);
+                }
+            }
+
             // Start hidden in tray if launched with --hidden (autostart)
             if std::env::args().any(|a| a == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {

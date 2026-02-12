@@ -165,19 +165,19 @@ body {
 
 @keyframes blobMove {
   0% {
-    transform: translate(0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
   25% {
-    transform: translate(60px, -40px) scale(1.1);
+    transform: translate3d(60px, -40px, 0);
   }
   50% {
-    transform: translate(-30px, 50px) scale(0.95);
+    transform: translate3d(-30px, 50px, 0);
   }
   75% {
-    transform: translate(40px, 30px) scale(1.05);
+    transform: translate3d(40px, 30px, 0);
   }
   100% {
-    transform: translate(-20px, -60px) scale(1);
+    transform: translate3d(-20px, -60px, 0);
   }
 }
 
@@ -215,12 +215,6 @@ body {
 
 /* Glass utility classes */
 .glass-panel {
-  box-shadow: var(--glass-shadow), var(--glass-highlight);
-}
-
-/* Full glass effect — use only on temporary overlays (modals, dialogs, popovers).
-   Avoid on always-visible panels; concurrent backdrop-filter is expensive on macOS WebKit. */
-.glass-panel-blur {
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--glass-shadow), var(--glass-highlight);
