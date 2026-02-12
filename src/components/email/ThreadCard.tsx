@@ -30,6 +30,7 @@ export function ThreadCard({ thread, isSelected, onClick, onContextMenu, categor
   const toggleThreadSelection = useThreadStore((s) => s.toggleThreadSelection);
   const selectThreadRange = useThreadStore((s) => s.selectThreadRange);
   const activeLabel = useUIStore((s) => s.activeLabel);
+  const emailDensity = useUIStore((s) => s.emailDensity);
 
   // Determine drag payload: if multi-selected and this thread is in selection, drag all; otherwise just this one
   const dragThreadIds = hasMultiSelect && isMultiSelected
@@ -74,7 +75,9 @@ export function ThreadCard({ thread, isSelected, onClick, onContextMenu, categor
       onContextMenu={onContextMenu}
       aria-label={`${thread.isRead ? "" : "Unread "}email from ${thread.fromName ?? thread.fromAddress ?? "Unknown"}: ${thread.subject ?? "(No subject)"}`}
       aria-selected={isSelected}
-      className={`w-full text-left px-4 py-3 border-b border-border-secondary group hover-lift press-scale ${
+      className={`w-full text-left border-b border-border-secondary group hover-lift press-scale ${
+        emailDensity === "compact" ? "px-3 py-1.5" : emailDensity === "spacious" ? "px-4 py-4" : "px-4 py-3"
+      } ${
         isDragging
           ? "opacity-50"
           : isMultiSelected
@@ -87,11 +90,13 @@ export function ThreadCard({ thread, isSelected, onClick, onContextMenu, categor
       <div className="flex items-start gap-3">
         {/* Avatar */}
         <div
-          className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-medium text-white ${
+          className={`rounded-full flex items-center justify-center shrink-0 font-medium text-white ${
+            emailDensity === "compact" ? "w-7 h-7 text-xs" : emailDensity === "spacious" ? "w-10 h-10 text-sm" : "w-9 h-9 text-sm"
+          } ${
             isMultiSelected ? "bg-accent" : thread.isRead ? "bg-text-tertiary" : "bg-accent"
           }`}
         >
-          {isMultiSelected ? <Check size={16} /> : initial}
+          {isMultiSelected ? <Check size={emailDensity === "compact" ? 14 : 16} /> : initial}
         </div>
 
         {/* Content */}
@@ -122,7 +127,7 @@ export function ThreadCard({ thread, isSelected, onClick, onContextMenu, categor
           </div>
 
           {/* Snippet + indicators */}
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className={`flex items-center gap-1.5 mt-0.5 ${emailDensity === "compact" ? "hidden" : ""}`}>
             <span className="text-xs text-text-tertiary truncate flex-1">
               {thread.snippet}
             </span>

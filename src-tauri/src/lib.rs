@@ -26,6 +26,13 @@ fn set_tray_tooltip(app: tauri::AppHandle, tooltip: String) -> Result<(), String
     tray.set_tooltip(Some(&tooltip)).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn open_devtools(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        w.open_devtools();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Set explicit AUMID on Windows so toast notifications show "Velo"
@@ -66,6 +73,7 @@ pub fn run() {
             oauth::start_oauth_server,
             set_tray_tooltip,
             close_splashscreen,
+            open_devtools,
         ])
         .setup(|app| {
             {

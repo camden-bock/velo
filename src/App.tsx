@@ -101,7 +101,7 @@ function ResizableEmailLayout() {
 }
 
 export default function App() {
-  const { theme, setTheme, sidebarCollapsed, setSidebarCollapsed, setContactSidebarVisible, readingPanePosition, setReadingPanePosition, setReadFilter, setEmailListWidth, activeLabel } = useUIStore();
+  const { theme, setTheme, sidebarCollapsed, setSidebarCollapsed, setContactSidebarVisible, readingPanePosition, setReadingPanePosition, setReadFilter, setEmailListWidth, setEmailDensity, setDefaultReplyMode, setMarkAsReadBehavior, setSendAndArchive, activeLabel } = useUIStore();
   const { setAccounts } = useAccountStore();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -196,6 +196,30 @@ export default function App() {
           if (w >= 240 && w <= 800) setEmailListWidth(w);
         }
 
+        // Restore email density
+        const savedDensity = await getSetting("email_density");
+        if (savedDensity === "compact" || savedDensity === "default" || savedDensity === "spacious") {
+          setEmailDensity(savedDensity);
+        }
+
+        // Restore default reply mode
+        const savedReplyMode = await getSetting("default_reply_mode");
+        if (savedReplyMode === "reply" || savedReplyMode === "replyAll") {
+          setDefaultReplyMode(savedReplyMode);
+        }
+
+        // Restore mark-as-read behavior
+        const savedMarkRead = await getSetting("mark_as_read_behavior");
+        if (savedMarkRead === "instant" || savedMarkRead === "2s" || savedMarkRead === "manual") {
+          setMarkAsReadBehavior(savedMarkRead);
+        }
+
+        // Restore send and archive
+        const savedSendArchive = await getSetting("send_and_archive");
+        if (savedSendArchive === "true") {
+          setSendAndArchive(true);
+        }
+
         // Load custom keyboard shortcuts
         await useShortcutStore.getState().loadKeyMap();
 
@@ -254,7 +278,7 @@ export default function App() {
       unregisterComposeShortcut();
       deepLinkCleanupRef?.();
     };
-  }, [setAccounts, setTheme, setSidebarCollapsed, setContactSidebarVisible, setReadingPanePosition, setReadFilter, setEmailListWidth]);
+  }, [setAccounts, setTheme, setSidebarCollapsed, setContactSidebarVisible, setReadingPanePosition, setReadFilter, setEmailListWidth, setEmailDensity, setDefaultReplyMode, setMarkAsReadBehavior, setSendAndArchive]);
 
   // Listen for sync status updates
   useEffect(() => {

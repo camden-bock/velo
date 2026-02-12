@@ -105,20 +105,34 @@ export function ThreadView({ thread }: ThreadViewProps) {
     return () => { cancelled = true; };
   }, [activeAccountId, messages]);
 
-  // Auto-mark unread threads as read when opened
+  // Auto-mark unread threads as read when opened (respects mark-as-read setting)
+  const markAsReadBehavior = useUIStore((s) => s.markAsReadBehavior);
   useEffect(() => {
     if (!activeAccountId || thread.isRead || markedReadRef.current === thread.id) return;
-    markedReadRef.current = thread.id;
-    updateThread(thread.id, { isRead: true });
-    getGmailClient(activeAccountId).then((client) => {
-      client.modifyThread(thread.id, undefined, ["UNREAD"]).catch((err) => {
-        console.error("Failed to mark thread as read:", err);
+    if (markAsReadBehavior === "manual") return;
+
+    const markRead = () => {
+      markedReadRef.current = thread.id;
+      updateThread(thread.id, { isRead: true });
+      getGmailClient(activeAccountId).then((client) => {
+        client.modifyThread(thread.id, undefined, ["UNREAD"]).catch((err) => {
+          console.error("Failed to mark thread as read:", err);
+        });
       });
-    });
-  }, [activeAccountId, thread.id, thread.isRead, updateThread]);
+    };
+
+    if (markAsReadBehavior === "2s") {
+      const timer = setTimeout(markRead, 2000);
+      return () => clearTimeout(timer);
+    }
+
+    // instant
+    markRead();
+  }, [activeAccountId, thread.id, thread.isRead, updateThread, markAsReadBehavior]);
 
   const openComposer = useComposerStore((s) => s.openComposer);
   const openMenu = useContextMenuStore((s) => s.openMenu);
+  const defaultReplyMode = useUIStore((s) => s.defaultReplyMode);
   const lastMessage = messages[messages.length - 1];
 
   const handleReply = useCallback(() => {
@@ -303,22 +317,22 @@ export function ThreadView({ thread }: ThreadViewProps) {
             {lastMessage && (
               <>
                 <button
-                  onClick={handleReply}
+                  onClick={defaultReplyMode === "replyAll" ? handleReplyAll : handleReply}
                   disabled={noReply}
-                  title={noReply ? "This sender does not accept replies" : "Reply (r)"}
+                  title={noReply ? "This sender does not accept replies" : defaultReplyMode === "replyAll" ? "Reply All (r)" : "Reply (r)"}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-secondary"
                 >
-                  <Reply size={14} />
-                  Reply
+                  {defaultReplyMode === "replyAll" ? <ReplyAll size={14} /> : <Reply size={14} />}
+                  {defaultReplyMode === "replyAll" ? "Reply All" : "Reply"}
                 </button>
                 <button
-                  onClick={handleReplyAll}
+                  onClick={defaultReplyMode === "replyAll" ? handleReply : handleReplyAll}
                   disabled={noReply}
-                  title={noReply ? "This sender does not accept replies" : "Reply All (a)"}
+                  title={noReply ? "This sender does not accept replies" : defaultReplyMode === "replyAll" ? "Reply (a)" : "Reply All (a)"}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-secondary"
                 >
-                  <ReplyAll size={14} />
-                  Reply All
+                  {defaultReplyMode === "replyAll" ? <Reply size={14} /> : <ReplyAll size={14} />}
+                  {defaultReplyMode === "replyAll" ? "Reply" : "Reply All"}
                 </button>
                 <button
                   onClick={handleForward}

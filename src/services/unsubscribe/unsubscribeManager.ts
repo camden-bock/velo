@@ -81,11 +81,16 @@ export async function executeUnsubscribe(
         const subjectMatch = parsed.mailtoAddress.match(/subject=([^&]+)/i);
         const subject = subjectMatch ? decodeURIComponent(subjectMatch[1]!) : "unsubscribe";
 
-        await client.sendMessage({
-          to,
+        const { getAccount } = await import("../db/accounts");
+        const account = await getAccount(accountId);
+        const { buildRawEmail } = await import("../../utils/emailBuilder");
+        const raw = buildRawEmail({
+          from: account?.email ?? "",
+          to: [to],
           subject,
-          body: "unsubscribe",
+          htmlBody: "unsubscribe",
         });
+        await client.sendMessage(raw);
         method = "mailto";
         success = true;
       }

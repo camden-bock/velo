@@ -22,6 +22,7 @@ import {
   Keyboard,
   Sparkles,
   MailMinus,
+  Code,
   type LucideIcon,
 } from "lucide-react";
 import { SignatureEditor } from "./SignatureEditor";
@@ -33,7 +34,7 @@ import { SubscriptionManager } from "./SubscriptionManager";
 import { SHORTCUTS, getDefaultKeyMap } from "@/constants/shortcuts";
 import { useShortcutStore } from "@/stores/shortcutStore";
 
-type SettingsTab = "general" | "composing" | "labels" | "filters" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai" | "subscriptions";
+type SettingsTab = "general" | "composing" | "labels" | "filters" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai" | "subscriptions" | "developer";
 
 const tabs: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: "General", icon: Settings },
@@ -46,10 +47,11 @@ const tabs: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "sync", label: "Sync", icon: RefreshCw },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
   { id: "ai", label: "AI", icon: Sparkles },
+  { id: "developer", label: "Developer", icon: Code },
 ];
 
 export function SettingsPage() {
-  const { theme, setTheme, readingPanePosition, setReadingPanePosition } = useUIStore();
+  const { theme, setTheme, readingPanePosition, setReadingPanePosition, emailDensity, setEmailDensity, defaultReplyMode, setDefaultReplyMode, markAsReadBehavior, setMarkAsReadBehavior, sendAndArchive, setSendAndArchive } = useUIStore();
   const setActiveLabel = useUIStore((s) => s.setActiveLabel);
   const { accounts, removeAccount: removeAccountFromStore } = useAccountStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
@@ -62,9 +64,6 @@ export function SettingsPage() {
   const [syncPeriodDays, setSyncPeriodDays] = useState("365");
   const [blockRemoteImages, setBlockRemoteImages] = useState(true);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
-  const [composeShortcut, setComposeShortcut] = useState(DEFAULT_SHORTCUT);
-  const [recordingShortcut, setRecordingShortcut] = useState(false);
-  const shortcutRecorderRef = useRef<HTMLButtonElement | null>(null);
   const [aiProvider, setAiProvider] = useState<"claude" | "openai" | "gemini">("claude");
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
@@ -108,10 +107,6 @@ export function SettingsPage() {
       } catch {
         // autostart plugin may not be available in dev
       }
-
-      // Load global shortcut
-      const current = getCurrentShortcut();
-      if (current) setComposeShortcut(current);
 
       // Load AI settings
       const provider = await getSetting("ai_provider");
@@ -227,28 +222,6 @@ export function SettingsPage() {
     }
   }, [autostartEnabled]);
 
-  const handleShortcutRecord = useCallback((e: React.KeyboardEvent) => {
-    if (!recordingShortcut) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const parts: string[] = [];
-    if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
-    if (e.altKey) parts.push("Alt");
-    if (e.shiftKey) parts.push("Shift");
-
-    const key = e.key;
-    if (key !== "Control" && key !== "Meta" && key !== "Shift" && key !== "Alt") {
-      parts.push(key.length === 1 ? key.toUpperCase() : key);
-      const shortcut = parts.join("+");
-      setComposeShortcut(shortcut);
-      setRecordingShortcut(false);
-      registerComposeShortcut(shortcut).catch((err) => {
-        console.error("Failed to register shortcut:", err);
-      });
-    }
-  }, [recordingShortcut]);
-
   const handleRemoveAccount = useCallback(
     async (accountId: string) => {
       removeClient(accountId);
@@ -360,6 +333,19 @@ export function SettingsPage() {
                         <option value="right">Right</option>
                         <option value="bottom">Bottom</option>
                         <option value="hidden">Off</option>
+                      </select>
+                    </SettingRow>
+                    <SettingRow label="Email density">
+                      <select
+                        value={emailDensity}
+                        onChange={(e) => {
+                          setEmailDensity(e.target.value as "compact" | "default" | "spacious");
+                        }}
+                        className="w-48 bg-bg-tertiary text-text-primary text-sm px-3 py-1.5 rounded-md border border-border-primary focus:border-accent outline-none"
+                      >
+                        <option value="compact">Compact</option>
+                        <option value="default">Default</option>
+                        <option value="spacious">Spacious</option>
                       </select>
                     </SettingRow>
                   </Section>
@@ -479,43 +465,6 @@ export function SettingsPage() {
                     )}
                   </Section>
 
-                  <Section title="Keyboard Shortcuts">
-                    <p className="text-sm text-text-tertiary">
-                      Press <kbd className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded border border-border-primary">?</kbd> anywhere to view all keyboard shortcuts.
-                    </p>
-                  </Section>
-
-                  <Section title="Global Shortcut">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-sm text-text-secondary">
-                          Quick compose
-                        </span>
-                        <p className="text-xs text-text-tertiary mt-0.5">
-                          Open compose window from any app
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <kbd className="text-xs bg-bg-tertiary px-2 py-1 rounded border border-border-primary font-mono">
-                          {composeShortcut}
-                        </kbd>
-                        <button
-                          ref={shortcutRecorderRef}
-                          onClick={() => setRecordingShortcut(true)}
-                          onKeyDown={handleShortcutRecord}
-                          onBlur={() => setRecordingShortcut(false)}
-                          className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
-                            recordingShortcut
-                              ? "bg-accent text-white"
-                              : "bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border-primary"
-                          }`}
-                        >
-                          {recordingShortcut ? "Press keys..." : "Change"}
-                        </button>
-                      </div>
-                    </div>
-                  </Section>
-
                   <Section title="Privacy">
                     <ToggleRow
                       label="Block remote images"
@@ -589,6 +538,40 @@ export function SettingsPage() {
                         <option value="5">5 seconds</option>
                         <option value="10">10 seconds</option>
                         <option value="30">30 seconds</option>
+                      </select>
+                    </SettingRow>
+                    <ToggleRow
+                      label="Send and archive"
+                      description="Automatically archive threads after sending a reply"
+                      checked={sendAndArchive}
+                      onToggle={() => setSendAndArchive(!sendAndArchive)}
+                    />
+                  </Section>
+
+                  <Section title="Behavior">
+                    <SettingRow label="Default reply action">
+                      <select
+                        value={defaultReplyMode}
+                        onChange={(e) => {
+                          setDefaultReplyMode(e.target.value as "reply" | "replyAll");
+                        }}
+                        className="w-48 bg-bg-tertiary text-text-primary text-sm px-3 py-1.5 rounded-md border border-border-primary focus:border-accent outline-none"
+                      >
+                        <option value="reply">Reply</option>
+                        <option value="replyAll">Reply All</option>
+                      </select>
+                    </SettingRow>
+                    <SettingRow label="Mark as read">
+                      <select
+                        value={markAsReadBehavior}
+                        onChange={(e) => {
+                          setMarkAsReadBehavior(e.target.value as "instant" | "2s" | "manual");
+                        }}
+                        className="w-48 bg-bg-tertiary text-text-primary text-sm px-3 py-1.5 rounded-md border border-border-primary focus:border-accent outline-none"
+                      >
+                        <option value="instant">Instantly</option>
+                        <option value="2s">After 2 seconds</option>
+                        <option value="manual">Manually</option>
                       </select>
                     </SettingRow>
                   </Section>
@@ -969,6 +952,10 @@ export function SettingsPage() {
                   <SubscriptionManager />
                 </Section>
               )}
+
+              {activeTab === "developer" && (
+                <DeveloperTab />
+              )}
             </div>
           </div>
         </div>
@@ -977,10 +964,102 @@ export function SettingsPage() {
   );
 }
 
+function DeveloperTab() {
+  const [appVersion, setAppVersion] = useState("");
+  const [tauriVersion, setTauriVersion] = useState("");
+  const [webviewVersion, setWebviewVersion] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      const { getVersion, getTauriVersion } = await import("@tauri-apps/api/app");
+      setAppVersion(await getVersion());
+      setTauriVersion(await getTauriVersion());
+
+      // Extract WebView version from user agent
+      const ua = navigator.userAgent;
+      const edgMatch = /Edg\/(\S+)/.exec(ua);
+      const chromeMatch = /Chrome\/(\S+)/.exec(ua);
+      const webkitMatch = /AppleWebKit\/(\S+)/.exec(ua);
+      setWebviewVersion(edgMatch?.[1] ?? chromeMatch?.[1] ?? webkitMatch?.[1] ?? "Unknown");
+    }
+    load();
+  }, []);
+
+  return (
+    <>
+      <Section title="App Info">
+        <InfoRow label="App version" value={appVersion || "..."} />
+        <InfoRow label="Tauri version" value={tauriVersion || "..."} />
+        <InfoRow label="WebView version" value={webviewVersion || "..."} />
+        <InfoRow label="Platform" value={navigator.platform} />
+      </Section>
+
+      <Section title="Developer Tools">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm text-text-secondary">Open DevTools</span>
+            <p className="text-xs text-text-tertiary mt-0.5">
+              Open the WebView developer tools inspector
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const { invoke } = await import("@tauri-apps/api/core");
+              await invoke("open_devtools");
+            }}
+            className="px-3 py-1.5 text-sm bg-bg-tertiary text-text-primary border border-border-primary rounded-md hover:bg-bg-hover transition-colors"
+          >
+            Open DevTools
+          </button>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-text-secondary">{label}</span>
+      <span className="text-sm text-text-primary font-mono">{value}</span>
+    </div>
+  );
+}
+
 function ShortcutsTab() {
   const { keyMap, setKey, resetKey, resetAll } = useShortcutStore();
   const defaults = getDefaultKeyMap();
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [composeShortcut, setComposeShortcut] = useState(DEFAULT_SHORTCUT);
+  const [recordingGlobal, setRecordingGlobal] = useState(false);
+  const globalRecorderRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const current = getCurrentShortcut();
+    if (current) setComposeShortcut(current);
+  }, []);
+
+  const handleGlobalRecord = useCallback((e: React.KeyboardEvent) => {
+    if (!recordingGlobal) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const parts: string[] = [];
+    if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+
+    const key = e.key;
+    if (key !== "Control" && key !== "Meta" && key !== "Shift" && key !== "Alt") {
+      parts.push(key.length === 1 ? key.toUpperCase() : key);
+      const shortcut = parts.join("+");
+      setComposeShortcut(shortcut);
+      setRecordingGlobal(false);
+      registerComposeShortcut(shortcut).catch((err) => {
+        console.error("Failed to register shortcut:", err);
+      });
+    }
+  }, [recordingGlobal]);
 
   const handleKeyRecord = useCallback((e: React.KeyboardEvent, id: string) => {
     e.preventDefault();
@@ -1008,6 +1087,35 @@ function ShortcutsTab() {
 
   return (
     <>
+      <Section title="Global Shortcut">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm text-text-secondary">Quick compose</span>
+            <p className="text-xs text-text-tertiary mt-0.5">
+              Open compose window from any app
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <kbd className="text-xs bg-bg-tertiary px-2 py-1 rounded border border-border-primary font-mono">
+              {composeShortcut}
+            </kbd>
+            <button
+              ref={globalRecorderRef}
+              onClick={() => setRecordingGlobal(true)}
+              onKeyDown={handleGlobalRecord}
+              onBlur={() => setRecordingGlobal(false)}
+              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                recordingGlobal
+                  ? "bg-accent text-white"
+                  : "bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border-primary"
+              }`}
+            >
+              {recordingGlobal ? "Press keys..." : "Change"}
+            </button>
+          </div>
+        </div>
+      </Section>
+
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-text-tertiary">
           Click a shortcut to rebind it. Press any key or key combination to set.

@@ -222,11 +222,13 @@ async function executeAction(actionId: string): Promise<void> {
     case "action.compose":
       useComposerStore.getState().openComposer();
       break;
-    case "action.reply":
+    case "action.reply": {
       if (selectedId) {
-        window.dispatchEvent(new CustomEvent("velo-inline-reply", { detail: { mode: "reply" } }));
+        const replyMode = useUIStore.getState().defaultReplyMode;
+        window.dispatchEvent(new CustomEvent("velo-inline-reply", { detail: { mode: replyMode } }));
       }
       break;
+    }
     case "action.replyAll":
       if (selectedId) {
         window.dispatchEvent(new CustomEvent("velo-inline-reply", { detail: { mode: "replyAll" } }));

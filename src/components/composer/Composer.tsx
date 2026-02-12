@@ -17,6 +17,7 @@ import { SignatureSelector } from "./SignatureSelector";
 import { TemplatePicker } from "./TemplatePicker";
 import { useComposerStore } from "@/stores/composerStore";
 import { useAccountStore } from "@/stores/accountStore";
+import { useUIStore } from "@/stores/uiStore";
 import { getGmailClient } from "@/services/gmail/tokenManager";
 import { buildRawEmail } from "@/utils/emailBuilder";
 import { upsertContact } from "@/services/db/contacts";
@@ -260,6 +261,11 @@ export function Composer() {
         // Delete draft if it was saved
         if (currentDraftId) {
           try { await client.deleteDraft(currentDraftId); } catch { /* ignore */ }
+        }
+
+        // Send & archive: remove from inbox if replying to a thread
+        if (useUIStore.getState().sendAndArchive && threadId) {
+          try { await client.modifyThread(threadId, undefined, ["INBOX"]); } catch { /* ignore */ }
         }
 
         // Update contacts frequency

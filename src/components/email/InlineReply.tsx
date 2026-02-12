@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Reply, ReplyAll, Forward, Send, Maximize2 } from "lucide-react";
 import { useAccountStore } from "@/stores/accountStore";
 import { useComposerStore } from "@/stores/composerStore";
+import { useUIStore } from "@/stores/uiStore";
 import { getGmailClient } from "@/services/gmail/tokenManager";
 import { buildRawEmail } from "@/utils/emailBuilder";
 import { upsertContact } from "@/services/db/contacts";
@@ -150,6 +151,11 @@ export function InlineReply({ thread, messages, accountId, noReply, onSent }: In
         try {
           const client = await getGmailClient(accountId);
           await client.sendMessage(raw, thread.id);
+
+          // Send & archive: remove from inbox if enabled
+          if (useUIStore.getState().sendAndArchive) {
+            try { await client.modifyThread(thread.id, undefined, ["INBOX"]); } catch { /* ignore */ }
+          }
 
           // Update contacts frequency
           for (const addr of [...to, ...cc]) {

@@ -85,4 +85,52 @@ describe("uiStore", () => {
     expect(setSetting).toHaveBeenCalledWith("read_filter", "read");
     expect(useUIStore.getState().readFilter).toBe("read");
   });
+
+  it("setEmailDensity should persist to DB and update state", () => {
+    expect(useUIStore.getState().emailDensity).toBe("default");
+
+    useUIStore.getState().setEmailDensity("compact");
+    expect(setSetting).toHaveBeenCalledWith("email_density", "compact");
+    expect(useUIStore.getState().emailDensity).toBe("compact");
+
+    useUIStore.getState().setEmailDensity("spacious");
+    expect(setSetting).toHaveBeenCalledWith("email_density", "spacious");
+    expect(useUIStore.getState().emailDensity).toBe("spacious");
+  });
+
+  it("setDefaultReplyMode should persist to DB and update state", () => {
+    expect(useUIStore.getState().defaultReplyMode).toBe("reply");
+
+    useUIStore.getState().setDefaultReplyMode("replyAll");
+    expect(setSetting).toHaveBeenCalledWith("default_reply_mode", "replyAll");
+    expect(useUIStore.getState().defaultReplyMode).toBe("replyAll");
+
+    useUIStore.getState().setDefaultReplyMode("reply");
+    expect(setSetting).toHaveBeenCalledWith("default_reply_mode", "reply");
+    expect(useUIStore.getState().defaultReplyMode).toBe("reply");
+  });
+
+  it("setMarkAsReadBehavior should persist to DB and update state", () => {
+    expect(useUIStore.getState().markAsReadBehavior).toBe("instant");
+
+    useUIStore.getState().setMarkAsReadBehavior("2s");
+    expect(setSetting).toHaveBeenCalledWith("mark_as_read_behavior", "2s");
+    expect(useUIStore.getState().markAsReadBehavior).toBe("2s");
+
+    useUIStore.getState().setMarkAsReadBehavior("manual");
+    expect(setSetting).toHaveBeenCalledWith("mark_as_read_behavior", "manual");
+    expect(useUIStore.getState().markAsReadBehavior).toBe("manual");
+  });
+
+  it("setSendAndArchive should persist to DB and update state", () => {
+    expect(useUIStore.getState().sendAndArchive).toBe(false);
+
+    useUIStore.getState().setSendAndArchive(true);
+    expect(setSetting).toHaveBeenCalledWith("send_and_archive", "true");
+    expect(useUIStore.getState().sendAndArchive).toBe(true);
+
+    useUIStore.getState().setSendAndArchive(false);
+    expect(setSetting).toHaveBeenCalledWith("send_and_archive", "false");
+    expect(useUIStore.getState().sendAndArchive).toBe(false);
+  });
 });
