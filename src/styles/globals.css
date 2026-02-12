@@ -110,6 +110,8 @@ body {
   filter: blur(80px);
   opacity: 0.5;
   animation: blobMove 20s ease-in-out infinite alternate;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .animated-bg .blob:nth-child(1) {
@@ -213,6 +215,12 @@ body {
 
 /* Glass utility classes */
 .glass-panel {
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+}
+
+/* Full glass effect — use only on temporary overlays (modals, dialogs, popovers).
+   Avoid on always-visible panels; concurrent backdrop-filter is expensive on macOS WebKit. */
+.glass-panel-blur {
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--glass-shadow), var(--glass-highlight);
