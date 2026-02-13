@@ -1,5 +1,7 @@
 import { parseSearchQuery } from "./searchParser";
 import { buildSearchQuery } from "./searchQueryBuilder";
+import { getThreadLabelIds, getThreadById } from "@/services/db/threads";
+import type { Thread } from "@/stores/threadStore";
 
 /**
  * Replace dynamic date tokens in a query string.
@@ -77,4 +79,54 @@ export function getSmartFolderUnreadCount(
   const countParams = params.slice(0, -1);
 
   return { sql: countSql, params: countParams };
+}
+
+export interface SmartFolderRow {
+  message_id: string;
+  account_id: string;
+  thread_id: string;
+  subject: string | null;
+  from_name: string | null;
+  from_address: string | null;
+  snippet: string | null;
+  date: number;
+}
+
+/**
+ * Map raw smart folder search result rows to Thread objects,
+ * enriching each with actual thread data (isRead, isStarred, etc.) from the DB.
+ */
+export async function mapSmartFolderRows(rows: SmartFolderRow[]): Promise<Thread[]> {
+  // Deduplicate by thread_id, keeping the first occurrence
+  const seen = new Set<string>();
+  const uniqueRows = rows.filter((r) => {
+    if (seen.has(r.thread_id)) return false;
+    seen.add(r.thread_id);
+    return true;
+  });
+
+  return Promise.all(
+    uniqueRows.map(async (r) => {
+      const [labelIds, dbThread] = await Promise.all([
+        getThreadLabelIds(r.account_id, r.thread_id),
+        getThreadById(r.account_id, r.thread_id),
+      ]);
+      return {
+        id: r.thread_id,
+        accountId: r.account_id,
+        subject: r.subject,
+        snippet: r.snippet,
+        lastMessageAt: r.date,
+        messageCount: dbThread?.message_count ?? 1,
+        isRead: dbThread ? dbThread.is_read === 1 : false,
+        isStarred: dbThread ? dbThread.is_starred === 1 : false,
+        isPinned: dbThread ? dbThread.is_pinned === 1 : false,
+        isMuted: dbThread ? dbThread.is_muted === 1 : false,
+        hasAttachments: dbThread ? dbThread.has_attachments === 1 : false,
+        labelIds,
+        fromName: r.from_name,
+        fromAddress: r.from_address,
+      };
+    }),
+  );
 }

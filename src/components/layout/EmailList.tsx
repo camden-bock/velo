@@ -19,7 +19,7 @@ import { useSmartFolderStore } from "@/stores/smartFolderStore";
 import { useContextMenuStore } from "@/stores/contextMenuStore";
 import { useComposerStore } from "@/stores/composerStore";
 import { getMessagesForThread } from "@/services/db/messages";
-import { getSmartFolderSearchQuery } from "@/services/search/smartFolderQuery";
+import { getSmartFolderSearchQuery, mapSmartFolderRows, type SmartFolderRow } from "@/services/search/smartFolderQuery";
 import { getDb } from "@/services/db/connection";
 import { Archive, Trash2, X, Ban, Filter, ChevronRight, Package, FolderSearch } from "lucide-react";
 import { EmptyState } from "../ui/EmptyState";
@@ -257,46 +257,8 @@ export function EmailList({ width, listRef }: { width?: number; listRef?: React.
           PAGE_SIZE,
         );
         const db = await getDb();
-        const rows = await db.select<{
-          message_id: string;
-          account_id: string;
-          thread_id: string;
-          subject: string | null;
-          from_name: string | null;
-          from_address: string | null;
-          snippet: string | null;
-          date: number;
-        }[]>(sql, params);
-
-        // Deduplicate by thread_id, keeping the first occurrence
-        const seen = new Set<string>();
-        const uniqueRows = rows.filter((r) => {
-          if (seen.has(r.thread_id)) return false;
-          seen.add(r.thread_id);
-          return true;
-        });
-
-        const mapped: Thread[] = await Promise.all(
-          uniqueRows.map(async (r) => {
-            const labelIds = await getThreadLabelIds(r.account_id, r.thread_id);
-            return {
-              id: r.thread_id,
-              accountId: r.account_id,
-              subject: r.subject,
-              snippet: r.snippet,
-              lastMessageAt: r.date,
-              messageCount: 1,
-              isRead: false,
-              isStarred: false,
-              isPinned: false,
-              isMuted: false,
-              hasAttachments: false,
-              labelIds,
-              fromName: r.from_name,
-              fromAddress: r.from_address,
-            };
-          }),
-        );
+        const rows = await db.select<SmartFolderRow[]>(sql, params);
+        const mapped = await mapSmartFolderRows(rows);
         setThreads(mapped);
         setHasMore(false); // Smart folders load all at once
       } else {
