@@ -374,8 +374,9 @@ export async function deltaSync(
           }
 
           // Send desktop notifications for new unread inbox messages (smart-filtered)
+          // Skip notifications for muted threads
           for (const parsed of parsedMessages) {
-            if (newInboxMessageIds.has(parsed.id)) {
+            if (newInboxMessageIds.has(parsed.id) && !mutedThreadIds.has(threadId)) {
               const fromAddr = parsed.fromAddress ?? undefined;
               if (shouldNotifyForMessage(smartNotifications, notifyCategories, vipSenders, await getThreadCategory(accountId, threadId), fromAddr)) {
                 const sender = parsed.fromName ?? parsed.fromAddress ?? "Unknown";
