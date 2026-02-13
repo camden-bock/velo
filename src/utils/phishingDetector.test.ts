@@ -295,6 +295,19 @@ describe("Rule: Brand Impersonation", () => {
     const rule = result.triggeredRules.find((r) => r.ruleId === "brand-impersonation");
     expect(rule).toBeUndefined();
   });
+
+  it("detects brand in lookalike domain (paypal-security.com)", () => {
+    const result = analyzeLink("https://paypal-security.com/login", "PayPal");
+    const rule = result.triggeredRules.find((r) => r.ruleId === "brand-impersonation");
+    expect(rule).toBeDefined();
+    expect(rule!.score).toBe(50);
+  });
+
+  it("detects brand in lookalike domain (microsoft-verify.com)", () => {
+    const result = analyzeLink("https://microsoft-verify.com/account", "Microsoft");
+    const rule = result.triggeredRules.find((r) => r.ruleId === "brand-impersonation");
+    expect(rule).toBeDefined();
+  });
 });
 
 // ── Clean URL (no rules triggered) ──────────────────────────────
@@ -439,5 +452,40 @@ describe("scanMessage", () => {
     const result = scanMessage("msg-5", "<a href='https://example.com'>Link</a>");
     expect(result.scannedAt).toBeGreaterThanOrEqual(before);
     expect(result.scannedAt).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+// ── Sensitivity levels ──────────────────────────────────────────
+
+describe("scanMessage sensitivity", () => {
+  // A link with score 30 (shortener 15 + keyword 15) — above "high" threshold (20) but below default (40)
+  const html30 = `<a href="https://bit.ly/login">Click</a>`;
+
+  it("high sensitivity shows banner for score 30", () => {
+    const result = scanMessage("msg-sens-1", html30, "high");
+    expect(result.showBanner).toBe(true);
+  });
+
+  it("default sensitivity does not show banner for score 30", () => {
+    const result = scanMessage("msg-sens-2", html30, "default");
+    expect(result.showBanner).toBe(false);
+  });
+
+  it("low sensitivity does not show banner for score 30", () => {
+    const result = scanMessage("msg-sens-3", html30, "low");
+    expect(result.showBanner).toBe(false);
+  });
+
+  // A link with score 55 (IP 40 + keyword 15) — above default (40) but below low (60)
+  const html55 = `<a href="http://192.168.1.1/login">Click</a>`;
+
+  it("low sensitivity does not show banner for score 55", () => {
+    const result = scanMessage("msg-sens-4", html55, "low");
+    expect(result.showBanner).toBe(false);
+  });
+
+  it("default sensitivity shows banner for score 55", () => {
+    const result = scanMessage("msg-sens-5", html55, "default");
+    expect(result.showBanner).toBe(true);
   });
 });

@@ -296,16 +296,19 @@ function checkBrandImpersonation(hostname: string, pathname: string): TriggeredR
   const lowerHost = hostname.toLowerCase();
   const lowerPath = pathname.toLowerCase();
   const registrable = getRegistrableDomain(lowerHost);
+  // Extract just the second-level domain name (e.g. "paypal" from "paypal.com")
+  const sld = registrable.split(".")[0] ?? "";
 
   for (const brand of IMPERSONATED_BRANDS) {
-    // Brand must appear in the subdomain or path
-    const inSubdomain = lowerHost !== registrable && lowerHost.includes(brand);
-    const inPath = lowerPath.includes(brand);
+    // Brand must appear anywhere in the hostname or path
+    const brandInUrl = lowerHost.includes(brand) || lowerPath.includes(brand);
 
-    if (inSubdomain || inPath) {
-      // But the registrable domain must NOT be the brand's domain
-      // e.g. paypal.com is fine, but paypal.evil.com is not
-      if (!registrable.startsWith(brand + ".") && !registrable.startsWith(brand)) {
+    if (brandInUrl) {
+      // Safe only if the SLD exactly matches the brand (i.e. it's the real domain)
+      // e.g. paypal.com → sld "paypal" = brand "paypal" → safe
+      // e.g. paypal-security.com → sld "paypal-security" ≠ "paypal" → flagged
+      // e.g. paypal.evil.com → sld "evil" ≠ "paypal" → flagged
+      if (sld !== brand) {
         return {
           ruleId: "brand-impersonation",
           name: "Brand Impersonation",
@@ -445,7 +448,16 @@ export function scanLinksInHtml(html: string): LinkAnalysis[] {
 
 // ── Message Scanning ───────────────────────────────────────────────
 
-export function scanMessage(messageId: string, html: string | null): MessageScanResult {
+export type PhishingSensitivity = "low" | "default" | "high";
+
+/** Banner thresholds per sensitivity level */
+const SENSITIVITY_THRESHOLDS: Record<PhishingSensitivity, { scoreThreshold: number; countThreshold: number }> = {
+  low: { scoreThreshold: 60, countThreshold: 5 },
+  default: { scoreThreshold: 40, countThreshold: 3 },
+  high: { scoreThreshold: 20, countThreshold: 1 },
+};
+
+export function scanMessage(messageId: string, html: string | null, sensitivity: PhishingSensitivity = "default"): MessageScanResult {
   if (!html) {
     return {
       messageId,
@@ -460,7 +472,8 @@ export function scanMessage(messageId: string, html: string | null): MessageScan
   const links = scanLinksInHtml(html);
   const maxRiskScore = links.reduce((max, l) => Math.max(max, l.riskScore), 0);
   const suspiciousLinkCount = links.filter((l) => l.riskScore >= 20).length;
-  const showBanner = maxRiskScore >= 40 || suspiciousLinkCount >= 3;
+  const { scoreThreshold, countThreshold } = SENSITIVITY_THRESHOLDS[sensitivity];
+  const showBanner = maxRiskScore >= scoreThreshold || suspiciousLinkCount >= countThreshold;
 
   return {
     messageId,
