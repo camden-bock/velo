@@ -62,7 +62,7 @@ Tauri v2 desktop app: Rust backend + React 19 frontend communicating via Tauri I
 
 ### Component organization
 
-11 groups, ~55 component files:
+12 groups, ~81 component files:
 - `layout/` — Sidebar, EmailList, ReadingPane, TitleBar
 - `email/` — ThreadView, ThreadCard, MessageItem, EmailRenderer, ActionBar, AttachmentList, SnoozeDialog, ContactSidebar, FollowUpDialog, InlineAttachmentPreview, InlineReply, SmartReplySuggestions, ThreadSummary, AuthBadge, AuthWarningBanner, PhishingBanner, LinkConfirmDialog, CategoryTabs
 - `composer/` — Composer (TipTap v3 rich text editor), AddressInput, EditorToolbar, AttachmentPicker, ScheduleSendDialog, SignatureSelector, TemplatePicker, UndoSendToast, AiAssistPanel, FromSelector
@@ -70,6 +70,7 @@ Tauri v2 desktop app: Rust backend + React 19 frontend communicating via Tauri I
 - `settings/` — SettingsPage, FilterEditor, LabelEditor, SignatureEditor, TemplateEditor, ContactEditor, SubscriptionManager, QuickStepEditor, SmartFolderEditor
 - `accounts/` — AddAccount, AccountSwitcher, SetupClientId
 - `calendar/` — CalendarPage, CalendarReauthBanner, CalendarToolbar, DayView, WeekView, MonthView, EventCard, EventCreateModal
+- `help/` — HelpPage, HelpSidebar, HelpSearchBar, HelpCard, HelpCardGrid, HelpTooltip
 - `labels/` — LabelForm
 - `dnd/` — DndProvider (@dnd-kit drag-and-drop: threads → sidebar labels)
 - `ui/` — EmptyState, Skeleton, ContextMenu, ContextMenuPortal, illustrations/ (InboxClearIllustration, NoAccountIllustration, NoSearchResultsIllustration, ReadingPaneIllustration, GenericEmptyIllustration)
@@ -153,7 +154,7 @@ Tailwind CSS v4 — uses `@import "tailwindcss"`, `@theme {}` for custom propert
 
 Vitest + jsdom. Setup file: `src/test/setup.ts` (imports `@testing-library/jest-dom/vitest`). Config: `globals: true` (no imports needed for `describe`, `it`, `expect`). Tests are colocated with source files (e.g., `uiStore.test.ts` next to `uiStore.ts`). Zustand test pattern: `useStore.setState()` in beforeEach, assert via `.getState()`.
 
-~30 test files across stores (6), services (10), utils (9), and components (5).
+64 test files across stores (7), services (22), utils (12), components (17), constants (3), router (1), hooks (1), and config (1).
 
 ## Database
 

@@ -38,8 +38,8 @@ Velo follows a **three-layer architecture** with clear separation of concerns.
 ## Data Flow
 
 1. **Sync** -- Background sync every 60s via Gmail History API (delta sync). Falls back to full sync if history expires (~30 days).
-2. **Storage** -- All messages, threads, labels, contacts, calendar events, and AI results stored in local SQLite (24 tables) with FTS5 full-text indexing.
-3. **State** -- Seven Zustand stores manage UI state. No middleware, no persistence needed -- ephemeral state rebuilds from SQLite on startup.
+2. **Storage** -- All messages, threads, labels, contacts, calendar events, and AI results stored in local SQLite (30 tables) with FTS5 full-text indexing.
+3. **State** -- Eight Zustand stores manage UI state. No middleware, no persistence needed -- ephemeral state rebuilds from SQLite on startup.
 4. **Rendering** -- Email HTML is sanitized with DOMPurify and rendered in sandboxed iframes. Remote images blocked by default.
 5. **Background services** -- Five interval checkers run continuously: sync, snooze, scheduled send, follow-up reminders, newsletter bundles (all 60s intervals).
 6. **Security** -- Phishing link detection scores message links with 10 heuristic rules. SPF/DKIM/DMARC authentication headers parsed and displayed as badges.
@@ -49,7 +49,7 @@ Velo follows a **three-layer architecture** with clear separation of concerns.
 ```
 velo/
 ├── src/
-│   ├── components/           # React components (11 groups, ~55 files)
+│   ├── components/           # React components (12 groups, ~81 files)
 │   │   ├── layout/           # Sidebar, EmailList, ReadingPane, TitleBar
 │   │   ├── email/            # ThreadView, MessageItem, EmailRenderer,
 │   │   │                     # ContactSidebar, SmartReplySuggestions,
@@ -65,6 +65,8 @@ velo/
 │   │   ├── accounts/         # AddAccount, AccountSwitcher, SetupClientId
 │   │   ├── calendar/         # CalendarPage, MonthView, WeekView, DayView,
 │   │   │                     # EventCard, EventCreateModal
+│   │   ├── help/             # HelpPage, HelpSidebar, HelpSearchBar,
+│   │   │                     # HelpCard, HelpCardGrid, HelpTooltip
 │   │   ├── labels/           # LabelForm
 │   │   ├── dnd/              # DndProvider (drag threads → sidebar labels)
 │   │   └── ui/               # EmptyState, Skeleton, ContextMenu, illustrations/
@@ -93,7 +95,7 @@ velo/
 │   ├── hooks/                # useKeyboardShortcuts, useClickOutside, useContextMenu
 │   ├── utils/                # crypto, date, emailBuilder, sanitize, imageBlocker,
 │   │                         # mailtoParser, fileUtils, templateVariables, noReply
-│   ├── constants/            # Keyboard shortcut definitions
+│   ├── constants/            # Keyboard shortcuts, color themes, help content
 │   └── styles/               # Tailwind CSS v4 globals
 ├── src-tauri/
 │   ├── src/                  # Rust backend (tray, OAuth, splash, single-instance)
