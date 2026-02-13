@@ -24,6 +24,7 @@ import {
   MailMinus,
   Code,
   Check,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { SignatureEditor } from "./SignatureEditor";
@@ -32,17 +33,19 @@ import { FilterEditor } from "./FilterEditor";
 import { LabelEditor } from "./LabelEditor";
 import { ContactEditor } from "./ContactEditor";
 import { SubscriptionManager } from "./SubscriptionManager";
+import { QuickStepEditor } from "./QuickStepEditor";
 import { SHORTCUTS, getDefaultKeyMap } from "@/constants/shortcuts";
 import { useShortcutStore } from "@/stores/shortcutStore";
 import { COLOR_THEMES } from "@/constants/themes";
 
-type SettingsTab = "general" | "composing" | "labels" | "filters" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai" | "subscriptions" | "developer";
+type SettingsTab = "general" | "composing" | "labels" | "filters" | "quickSteps" | "contacts" | "accounts" | "sync" | "shortcuts" | "ai" | "subscriptions" | "developer";
 
 const tabs: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "composing", label: "Composing", icon: PenLine },
   { id: "labels", label: "Labels", icon: Tag },
   { id: "filters", label: "Filters", icon: Filter },
+  { id: "quickSteps", label: "Quick Steps", icon: Zap },
   { id: "contacts", label: "Contacts", icon: Users },
   { id: "subscriptions", label: "Subscriptions", icon: MailMinus },
   { id: "accounts", label: "Accounts", icon: UserCircle },
@@ -646,6 +649,16 @@ export function SettingsPage() {
                     Filters automatically apply actions to new incoming emails during sync.
                   </p>
                   <FilterEditor />
+                </Section>
+              )}
+
+              {activeTab === "quickSteps" && (
+                <Section title="Quick Steps">
+                  <p className="text-xs text-text-tertiary mb-3">
+                    Quick steps let you chain multiple actions together into a single click.
+                    Apply them from the right-click menu on any thread.
+                  </p>
+                  <QuickStepEditor />
                 </Section>
               )}
 
